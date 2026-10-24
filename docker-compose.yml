@@ -1,0 +1,23 @@
+# prod (default):  docker compose up -d --build
+# dev:             docker compose --profile dev up --build app-dev
+services:
+  app:
+    build: { context: ., target: prod }
+    image: radiocalico:prod
+    ports: ["8080:8080"]
+    volumes: ["radiocalico-data:/data"]
+    restart: unless-stopped
+
+  app-dev:
+    profiles: [dev]
+    build: { context: ., target: dev }
+    image: radiocalico:dev
+    ports: ["8081:8080"]
+    volumes:
+      - .:/app                      # live source: Flask reloads, nginx serves public/ as edited
+      - radiocalico-dev-data:/data
+    user: "${UID:-1000}:${GID:-1000}"
+
+volumes:
+  radiocalico-data:
+  radiocalico-dev-data:

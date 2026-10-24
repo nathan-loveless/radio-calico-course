@@ -237,4 +237,4 @@ with sqlite3.connect(DB_PATH) as _db:
     scanner.scan(_db)
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=5000, debug=True)
+    app.run(host=os.environ.get("RADIOCALICO_HOST", "127.0.0.1"), port=5000, debug=os.environ.get("RADIOCALICO_DEBUG", "1") == "1")

@@ -1,0 +1,13 @@
+.git
+.github
+.venv
+run
+logs
+data
+node_modules
+tests
+__pycache__
+.pytest_cache
+*.zip
+*.png
+!public/*.png
