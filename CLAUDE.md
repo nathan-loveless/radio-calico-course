@@ -1,0 +1,59 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Overview
+
+Radio Calico: a web radio player. A static frontend (`public/`, vanilla JS, no build step) is served by nginx, which proxies `/api/` to a small Flask + SQLite backend. There are no tests and no linter configured.
+
+## File structure
+
+```
+radiocalico/
+├── app.py                  # Flask API (auth, ratings, tracks); runs init_db + scan on import
+├── scanner.py              # Indexes public/media/ audio tags into the tracks table
+├── schema.sql              # SQLite schema, applied on every app start
+├── dev.sh                  # start|stop|status|scan|sql helper
+├── nginx.conf              # Static serving + /api/ proxy (absolute paths)
+├── requirements.txt        # Python deps (Flask, mutagen)
+├── stream_URL.txt          # Reference copy of the HLS stream URL
+├── public/                 # Static frontend served by nginx
+│   ├── index.html          # Markup; loads hls.js from cdnjs, then player.js
+│   ├── style.css           # All styling (numbered sections, CSS variable tokens)
+│   ├── player.js           # HLS playback, now-playing metadata, ratings, auth UI
+│   ├── logo.png            # Wordmark logo / cover placeholder
+│   └── media/              # Local audio files (sample-a/b/c.wav) scanned into tracks
+├── RadioCalico_Style_Guide.txt   # Brand palette, typography, components
+├── RadioCalicoLayout.png         # Layout mockup
+├── RadioCalicoLogoTM.png         # Original logo asset
+├── RadioCalicoStyle.zip          # Style assets archive
+├── data/                   # Git-ignored: radiocalico.db, secret_key
+├── logs/                   # Git-ignored: access/error/app logs
+├── run/                    # Git-ignored: pidfiles and nginx temp dirs
+└── .venv/                  # Git-ignored: Python virtualenv
+```
+
+## Commands
+
+Everything runs through `./dev.sh` (uses `.venv`, nginx must be installed):
+
+- `./dev.sh start` / `stop` / `status`: run Flask (127.0.0.1:5000, logs in `logs/app.log`) and nginx (http://localhost:8080). Pidfiles in `run/`.
+- `./dev.sh scan`: re-index `public/media/` audio files into the `tracks` table.
+- `./dev.sh sql '<query>'`: run a query against `data/radiocalico.db`.
+- Dependencies: `.venv/bin/pip install -r requirements.txt` (Flask, mutagen).
+
+Flask is started with `python app.py` (debug=True, so it reloads on edit); nginx must be restarted for `nginx.conf` changes. `.gitignore` excludes `.venv`, `run`, `logs`, `data` (DB and `secret_key` are local state).
+
+## Architecture
+
+- **nginx.conf**: all paths are absolute to `/home/nathansl2003/radiocalico`; update them if the repo moves. Serves `public/` statically and proxies `/api/` to Flask. Adds MIME types for wav/flac/aac so local media plays.
+- **app.py**: single-file Flask API (health, tracks, scan, register/login/logout/me, ratings). On import it runs `init_db()` (executes `schema.sql`, plus ad-hoc `alter table` migrations for older DBs) and a media scan, so schema changes go in `schema.sql` using `create table if not exists` and need a migration step for existing tables.
+  - Auth: session cookie (`uid`), secret key generated into `data/secret_key`. Login does a dummy hash check to avoid username enumeration.
+  - CSRF defense: `before_request` rejects POST/DELETE without a JSON content type (forces CORS preflight). New write endpoints must take JSON.
+  - Ratings are keyed by `song_key` = sha256 of normalized (artist, title), not by track id, so they apply to songs from the live stream as well as local tracks. One rating per user per song (upsert); voter is `u:<user id>`.
+- **scanner.py**: reads tags with mutagen from `public/media/` and upserts into `tracks` by `filename`; removes rows for deleted files. Used by `app.py` at startup, `POST /api/scan`, and `dev.sh scan`.
+- **public/player.js**: plays an HLS live stream (hls.js from cdnjs) from CloudFront; stream and now-playing metadata (`metadatav2.json`) URLs are hard-coded constants at the top and in the metadata section (`stream_URL.txt` is a reference copy). Current song's artist/title from that metadata is what the ratings API is called with. The local `/api/tracks` library is separate from the live stream.
+
+## Design
+
+`RadioCalico_Style_Guide.txt` defines the brand (palette: forest green #1F4E23, teal #38A29D, mint #D8F2D5, calico orange #EFA63C, cream #F5EADA, charcoal #231F20; Montserrat headings, Open Sans body). `RadioCalicoLayout.png` is the layout mockup. Follow these in `public/style.css`.

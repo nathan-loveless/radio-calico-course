@@ -1,0 +1,610 @@
+/* ==========================================================================
+   Radio Calico
+   Layout from RadioCalicoLayout.png, tokens from RadioCalico_Style_Guide.txt
+
+   1. Tokens
+   2. Base & utilities
+   3. Header / nav
+   4. Listen area (cover + now playing)
+   5. Rating row
+   6. Player bar
+   7. Previous tracks
+   8. Auth dialog & form inputs
+   9. Responsive
+   ========================================================================== */
+
+
+/* 1. Tokens
+   ========================================================================== */
+:root {
+  /* Brand palette */
+  --mint:     #D8F2D5;
+  --forest:   #1F4E23;
+  --teal:     #38A29D;
+  --orange:   #EFA63C;
+  --charcoal: #231F20;
+  --cream:    #F5EADA;
+  --white:    #FFFFFF;
+
+  /* Neutrals */
+  --bar:   #4A4A4A;
+  --page:  #FAFAFC;
+  --muted: #444444;
+  --error: #9B1C1C;
+
+  /* Typography */
+  --font-body: "Open Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font:      "Montserrat", "Open Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  /* Shared effects */
+  --focus-ring: 0 0 0 3px rgba(56, 162, 157, 0.5);
+}
+
+
+/* 2. Base & utilities
+   ========================================================================== */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: var(--page);
+  color: var(--charcoal);
+  font: 400 1rem/1.6 var(--font-body);
+}
+
+p,
+h2 {
+  margin: 0;
+}
+
+/* Icons: 2px rounded outline by default (per style guide) */
+svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Visually hidden but available to screen readers */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* A button that looks like a text link */
+.link-btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+button:focus-visible,
+input:focus-visible,
+a:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.error {
+  margin-top: 16px;
+  color: var(--error);
+  font-size: 0.875rem;
+}
+
+.error[hidden] {
+  display: none;
+}
+
+
+/* 3. Header / nav
+   Dark grey bar, centered "Radio [logo] Calico" wordmark in mint
+   ========================================================================== */
+.nav {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 12px 24px;
+  background: var(--bar);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--mint);
+  font: 600 2rem/1.2 var(--font);
+  text-decoration: none;
+}
+
+.brand img {
+  display: block;
+  width: 48px;
+  height: 48px;
+}
+
+.account {
+  position: absolute;
+  right: 24px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  color: var(--white);
+  font-size: 0.875rem;
+}
+
+.account [hidden] {
+  display: none;
+}
+
+
+/* 4. Listen area
+   Cover on the left (7/12), now-playing details on the right (5/12)
+   ========================================================================== */
+main {
+  width: 100%;
+  max-width: 1010px;
+  margin: 0 auto;
+  padding: 30px 24px;
+}
+
+.listen-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 48px;
+  align-items: stretch;
+}
+
+/* Cover art (logo shown as placeholder until artwork loads) */
+.cover-wrap {
+  grid-column: span 7;
+  aspect-ratio: 1;
+  background: var(--mint) url(logo.png) center / 40% no-repeat;
+}
+
+.cover {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cover[hidden] {
+  display: none;
+}
+
+/* Now-playing details */
+.info {
+  grid-column: span 5;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.np-artist,
+.np-title,
+.np-album {
+  color: #000;
+  overflow-wrap: anywhere;
+}
+
+.np-artist {
+  font: 700 2.75rem/1.2 var(--font);
+}
+
+.np-title {
+  margin-top: 48px;
+  font: 500 2.25rem/1.3 var(--font);
+}
+
+.np-album {
+  margin-top: 40px;
+  font: 500 1.5rem/1.4 var(--font);
+}
+
+.np-artist:empty,
+.np-album:empty {
+  display: none;
+}
+
+/* Audio quality lines */
+.quality {
+  margin-top: 32px;
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-style: italic;
+  line-height: 1.9;
+}
+
+.quality span {
+  display: block;
+}
+
+.quality #quality:empty {
+  display: none;
+}
+
+/* "New" badge */
+.badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 4px;
+  font: 600 0.75rem/1.6 var(--font-body);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.badge.new {
+  margin-top: 16px;
+  background: var(--orange);
+  color: var(--charcoal);
+}
+
+.badge[hidden] {
+  display: none;
+}
+
+
+/* 5. Rating row
+   ========================================================================== */
+.rate {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-top: auto;
+  padding-top: 32px;
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+
+.rate-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 8px;
+  border: 2px solid transparent;
+  border-radius: 20px;
+  background: transparent;
+  color: var(--charcoal);
+  font: 600 0.875rem var(--font-body);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.rate-btn > span:first-child {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.rate-btn:hover:not(:disabled) {
+  background: var(--mint);
+}
+
+.rate-btn:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+/* The listener's current vote */
+.rate-btn.mine {
+  background: var(--mint);
+  border-color: var(--forest);
+  opacity: 1;
+}
+
+.rate-msg {
+  flex-basis: 100%;
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+.rate-msg:empty {
+  display: none;
+}
+
+#rate-undo {
+  color: var(--forest);
+  font-size: 0.875rem;
+}
+
+#rate-undo[hidden] {
+  display: none;
+}
+
+
+/* 6. Player bar
+   Dark rounded bar with white controls
+   ========================================================================== */
+.player {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  max-width: 340px;
+  min-height: 60px;
+  margin-top: 24px;
+  padding: 8px 24px 8px 16px;
+  border-radius: 8px;
+  background: var(--bar);
+  color: var(--white);
+}
+
+/* Play / pause button */
+.play {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--white);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.play:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.play:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.play svg {
+  width: 28px;
+  height: 28px;
+  fill: currentColor;
+}
+
+.play #icon-pause {
+  fill: none;
+}
+
+.play svg[hidden] {
+  display: none;
+}
+
+#elapsed {
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Volume */
+.volume {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.volume svg {
+  width: 28px;
+  height: 28px;
+  fill: currentColor;
+  stroke-width: 1.5;
+}
+
+/* --fill is set from player.js to match the slider value */
+#vol {
+  --fill: 100%;
+  -webkit-appearance: none;
+  appearance: none;
+  width: 90px;
+  height: 6px;
+  border-radius: 3px;
+  outline: none;
+  background: linear-gradient(to right, #8C8C8C var(--fill), #6A6A6A var(--fill));
+}
+
+#vol::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--white);
+  cursor: pointer;
+}
+
+#vol::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--white);
+  cursor: pointer;
+}
+
+#vol::-moz-range-track {
+  background: transparent;
+}
+
+
+/* 7. Previous tracks
+   Full-width mint band
+   ========================================================================== */
+.recent {
+  flex: 1;
+  padding: 32px 24px 48px;
+  background: var(--mint);
+}
+
+.recent-inner {
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+.recent h2 {
+  color: #000;
+  font: 600 1.5rem/1.4 var(--font);
+}
+
+.recent ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  line-height: 1.7;
+}
+
+.recent .a::after {
+  content: ": ";
+}
+
+.recent .t {
+  color: var(--muted);
+  font-style: italic;
+}
+
+
+/* 8. Auth dialog & form inputs
+   ========================================================================== */
+.primary {
+  padding: 0.75rem 1.5rem;
+  border: 0;
+  border-radius: 4px;
+  background: var(--forest);
+  color: var(--white);
+  font: 600 0.875rem var(--font-body);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.primary:hover {
+  background: var(--teal);
+}
+
+dialog {
+  width: min(92vw, 360px);
+  padding: 24px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--white);
+  color: var(--charcoal);
+}
+
+dialog::backdrop {
+  background: rgba(35, 31, 32, 0.6);
+}
+
+dialog h2 {
+  margin-bottom: 16px;
+  color: var(--forest);
+  font: 600 1.5rem/1.4 var(--font);
+}
+
+dialog label {
+  display: block;
+  margin-bottom: 16px;
+  font-size: 0.875rem;
+}
+
+dialog input {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 0.5rem;
+  border: 1px solid #CCC;
+  border-radius: 4px;
+  font: inherit;
+}
+
+dialog input:focus {
+  outline: none;
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px rgba(56, 162, 157, 0.3);
+}
+
+.auth-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin-top: 16px;
+}
+
+.auth-actions .link-btn {
+  color: var(--forest);
+  font-size: 0.875rem;
+}
+
+
+/* 9. Responsive
+   ========================================================================== */
+@media (max-width: 860px) {
+  .listen-grid {
+    gap: 24px;
+  }
+
+  .cover-wrap,
+  .info {
+    grid-column: 1 / -1;
+  }
+
+  .cover-wrap {
+    width: 100%;
+    max-width: 480px;
+    margin: 0 auto;
+  }
+
+  .np-artist {
+    font-size: 2.25rem;
+  }
+
+  .np-title {
+    margin-top: 24px;
+    font-size: 1.75rem;
+  }
+
+  .np-album {
+    margin-top: 16px;
+    font-size: 1.25rem;
+  }
+
+  .rate {
+    margin-top: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .nav {
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 16px;
+  }
+
+  .brand {
+    font-size: 1.5rem;
+  }
+
+  .account {
+    position: static;
+    transform: none;
+  }
+}

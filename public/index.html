@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Radio Calico</title>
+  <link rel="icon" href="logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&family=Open+Sans:ital,wght@0,400;0,600;1,400&display=swap">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="nav">
+    <a class="brand" href="/" aria-label="Radio Calico home">
+      <span>Radio</span>
+      <img src="logo.png" alt="" width="48" height="48">
+      <span>Calico</span>
+    </a>
+    <div class="account">
+      <span id="whoami" hidden></span>
+      <button id="auth-open" class="link-btn" type="button">Log in / Register</button>
+      <button id="logout" class="link-btn" type="button" hidden>Log out</button>
+    </div>
+  </header>
+
+  <main id="listen">
+    <div class="listen-grid">
+      <div class="cover-wrap">
+        <img id="np-cover" class="cover" alt="" hidden>
+      </div>
+
+      <section id="now-playing" class="info" aria-labelledby="np-h">
+        <h2 id="np-h" class="sr-only">Now playing</h2>
+        <p id="np-artist" class="np-artist"></p>
+        <p id="np-title" class="np-title">Loading…</p>
+        <p id="np-album" class="np-album"></p>
+        <span id="np-new" class="badge new" hidden>New</span>
+        <p class="quality">
+          <span id="quality"></span>
+          <span id="stream-quality">Stream quality: HLS</span>
+        </p>
+
+        <div class="rate" role="group" aria-label="Rate this track">
+          <span class="rate-label">Rate this track:</span>
+          <button id="rate-up" class="rate-btn" type="button" data-value="1" aria-label="Thumbs up" disabled>
+            <span aria-hidden="true">👍</span><span id="count-up">0</span>
+          </button>
+          <button id="rate-down" class="rate-btn" type="button" data-value="-1" aria-label="Thumbs down" disabled>
+            <span aria-hidden="true">👎</span><span id="count-down">0</span>
+          </button>
+          <button id="rate-undo" class="link-btn" type="button" hidden>Undo</button>
+          <span id="rate-msg" class="rate-msg" role="status" aria-live="polite"></span>
+        </div>
+
+        <div id="player" class="player" role="group" aria-label="Audio controls">
+          <button id="play" class="play" aria-label="Play" type="button">
+            <svg id="icon-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16l13-8z"/></svg>
+            <svg id="icon-pause" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="M8 5v14M16 5v14"/></svg>
+          </button>
+          <time id="elapsed" aria-label="Elapsed time">0:00 / Live</time>
+          <label class="volume">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/><path d="M19 6a9 9 0 0 1 0 12"/></svg>
+            <span class="sr-only">Volume</span>
+            <input id="vol" type="range" min="0" max="1" step="0.05" value="1">
+          </label>
+        </div>
+        <span id="live" class="sr-only">Live</span>
+        <p id="state" class="sr-only" role="status" aria-live="polite">Ready</p>
+        <p id="error" class="error" role="alert" hidden></p>
+        <audio id="audio" preload="none"></audio>
+      </section>
+    </div>
+  </main>
+
+  <section id="recent" class="recent" aria-labelledby="rp-h">
+    <div class="recent-inner">
+      <h2 id="rp-h">Previous tracks:</h2>
+      <ol id="rp-list"></ol>
+    </div>
+  </section>
+
+  <dialog id="auth-dialog" aria-labelledby="auth-h">
+    <form id="auth-form" method="dialog">
+      <h2 id="auth-h">Log in</h2>
+      <label>Username <input id="auth-user" name="username" autocomplete="username" required minlength="3" maxlength="30"></label>
+      <label>Password <input id="auth-pass" name="password" type="password" autocomplete="current-password" required minlength="8"></label>
+      <p id="auth-error" class="error" role="alert" hidden></p>
+      <div class="auth-actions">
+        <button id="auth-submit" class="primary" type="submit">Log in</button>
+        <button id="auth-switch" class="link-btn" type="button">Need an account? Register</button>
+        <button id="auth-cancel" class="link-btn" type="button">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.13/hls.min.js"></script>
+  <script src="player.js"></script>
+</body>
+</html>
