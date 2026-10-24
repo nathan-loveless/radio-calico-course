@@ -78,6 +78,18 @@ radiocalico/
 
 Palette: forest green `#1F4E23`, teal `#38A29D`, mint `#D8F2D5`, calico orange `#EFA63C`, cream `#F5EADA`, charcoal `#231F20`. Headings use Montserrat and body text uses Open Sans. See `RadioCalico_Style_Guide.txt` and `RadioCalicoLayout.png`.
 
-## Notes
+## Testing
 
-There are no automated tests or linter configured.
+Ratings and auth are covered by unit tests on both sides. There is no linter configured.
+
+```bash
+# Backend (pytest; uses a temp data dir via RADIOCALICO_DATA_DIR, never touches data/)
+.venv/bin/pip install -r requirements-dev.txt
+.venv/bin/pytest
+
+# Frontend (Vitest + jsdom; loads public/index.html and player.js unmodified)
+npm install
+npm test
+```
+
+Both run in GitHub Actions on every push to `main` and on pull requests (`.github/workflows/test.yml`).

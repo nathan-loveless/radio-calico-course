@@ -1,4 +1,5 @@
 import hashlib
+import os
 import re
 import secrets
 import sqlite3
@@ -11,13 +12,15 @@ from werkzeug.security import check_password_hash, generate_password_hash
 import scanner
 
 BASE = Path(__file__).parent
-DB_PATH = BASE / "data" / "radiocalico.db"
+DATA_DIR = Path(os.environ.get("RADIOCALICO_DATA_DIR", BASE / "data"))
+DB_PATH = DATA_DIR / "radiocalico.db"
 
 app = Flask(__name__)
 
 
 def load_secret_key():
-    path = BASE / "data" / "secret_key"
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    path = DATA_DIR / "secret_key"
     if not path.exists():
         path.write_text(secrets.token_hex(32))
         path.chmod(0o600)

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-Radio Calico: a web radio player. A static frontend (`public/`, vanilla JS, no build step) is served by nginx, which proxies `/api/` to a small Flask + SQLite backend. There are no tests and no linter configured.
+Radio Calico: a web radio player. A static frontend (`public/`, vanilla JS, no build step) is served by nginx, which proxies `/api/` to a small Flask + SQLite backend. Unit tests cover the ratings/auth system (see Testing); no linter is configured.
 
 ## File structure
 
@@ -53,6 +53,12 @@ Flask is started with `python app.py` (debug=True, so it reloads on edit); nginx
   - Ratings are keyed by `song_key` = sha256 of normalized (artist, title), not by track id, so they apply to songs from the live stream as well as local tracks. One rating per user per song (upsert); voter is `u:<user id>`.
 - **scanner.py**: reads tags with mutagen from `public/media/` and upserts into `tracks` by `filename`; removes rows for deleted files. Used by `app.py` at startup, `POST /api/scan`, and `dev.sh scan`.
 - **public/player.js**: plays an HLS live stream (hls.js from cdnjs) from CloudFront; stream and now-playing metadata (`metadatav2.json`) URLs are hard-coded constants at the top and in the metadata section (`stream_URL.txt` is a reference copy). Current song's artist/title from that metadata is what the ratings API is called with. The local `/api/tracks` library is separate from the live stream.
+
+## Testing
+
+- Backend: `.venv/bin/pip install -r requirements-dev.txt && .venv/bin/pytest` (`tests/backend/`). `tests/backend/conftest.py` sets `RADIOCALICO_DATA_DIR` to a temp dir before importing `app`, because `app.py` runs `init_db()` and a scan on import; `app.py` honors that env var for the DB and `secret_key`.
+- Frontend: `npm install && npm test` (`tests/frontend/`, Vitest + jsdom). `helpers.js` loads `public/index.html` and `player.js` unmodified into jsdom with a stubbed `fetch` route table; `player.js` has no exports, so tests drive it through the DOM.
+- CI: `.github/workflows/test.yml` runs both on push to main and PRs.
 
 ## Design
 
