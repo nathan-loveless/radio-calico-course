@@ -1,0 +1,14 @@
+# dev: SQLite, one container (nginx + Flask reloader), repo bind-mounted. No secrets needed.
+#   docker compose -f docker-compose.dev.yml up --build     -> http://localhost:8081
+services:
+  app:
+    build: { context: ., target: dev }
+    image: radiocalico-dev
+    ports: ["8081:8080"]
+    volumes:
+      - .:/app                      # live source: Flask reloads, nginx serves public/ as edited
+      - radiocalico-dev-data:/data
+    user: "${UID:-1000}:${GID:-1000}"
+
+volumes:
+  radiocalico-dev-data:

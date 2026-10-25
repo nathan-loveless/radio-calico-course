@@ -45,8 +45,11 @@ def scan(db):
             (title, artist, album, duration, p.name),
         )
     names = [p.name for p in files]
-    marks = ",".join("?" * len(names))
-    removed = db.execute(f"delete from tracks where filename not in ({marks})", names).rowcount
+    if names:
+        marks = ",".join("?" * len(names))
+        removed = db.execute(f"delete from tracks where filename not in ({marks})", names).rowcount
+    else:  # `not in ()` is a syntax error on PostgreSQL
+        removed = db.execute("delete from tracks").rowcount
     return len(files), removed
 
 

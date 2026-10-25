@@ -1,5 +1,3 @@
-import sqlite3
-
 import pytest
 
 import app as app_module
@@ -12,8 +10,9 @@ def rate(c, value, **song):
 
 
 def rows():
-    with sqlite3.connect(app_module.DB_PATH) as db:
-        return db.execute("select song_key, voter, artist, title, value from ratings").fetchall()
+    cols = ("song_key", "voter", "artist", "title", "value")
+    with app_module.db.connect() as conn:
+        return [tuple(r[c] for c in cols) for r in conn.execute(f"select {', '.join(cols)} from ratings")]
 
 
 # --- GET ---------------------------------------------------------------
