@@ -47,7 +47,7 @@ radiocalico/
 
 ## Commands
 
-`Makefile` wraps the common tasks (`make help` lists them): `prod`/`prod-down`/`prod-logs`, `dev`/`dev-down`, `local`/`local-stop`, `test`, `test-backend`, `test-postgres` (starts and removes its own postgres container), `test-frontend`, `setup`. `make prod` refuses to run without `.env`.
+`Makefile` wraps the common tasks (`make help` lists them): `prod`/`prod-down`/`prod-logs`, `dev`/`dev-down`, `local`/`local-stop`, `test`, `test-backend`, `test-postgres` (starts and removes its own postgres container), `test-frontend`, `security`, `setup`. `make prod` refuses to run without `.env`.
 
 Docker: `docker compose up -d --build` (prod, :8080, needs `.env`) or `docker compose -f docker-compose.dev.yml up --build` (dev, :8081). Details under Docker.
 
@@ -86,7 +86,8 @@ Flask is started with `python app.py` (debug=True, so it reloads on edit); nginx
 
 - Backend: `.venv/bin/pip install -r requirements-dev.txt && .venv/bin/pytest` (`tests/backend/`). `tests/backend/conftest.py` sets `RADIOCALICO_DATA_DIR` to a temp dir before importing `app`, because `app.py` runs `init_db()` and a scan on import; `app.py` honors that env var for the DB and `secret_key`. With `DATABASE_URL` set to a disposable PostgreSQL the same suite runs against Postgres (CI runs both); the tests delete all users and ratings.
 - Frontend: `npm install && npm test` (`tests/frontend/`, Vitest + jsdom). `helpers.js` loads `public/index.html` and `player.js` unmodified into jsdom with a stubbed `fetch` route table; `player.js` has no exports, so tests drive it through the DOM.
-- CI: `.github/workflows/test.yml` runs backend (SQLite), backend (PostgreSQL service container) and frontend on push to main and PRs.
+- Security: `make security` runs `npm audit --audit-level=moderate` (CI job `security`). Only dev dependencies (Vitest, jsdom) exist, so it audits the test toolchain; Python deps are not scanned. A failing audit blocks CI, so bump the dependency (or its lockfile) rather than lowering the level.
+- CI: `.github/workflows/test.yml` runs backend (SQLite), backend (PostgreSQL service container), frontend and security on push to main and PRs.
 
 ## Design
 
