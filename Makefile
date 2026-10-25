@@ -7,7 +7,7 @@ PG_PORT      ?= 55432
 
 .DEFAULT_GOAL := help
 .PHONY: help prod prod-down prod-logs prod-ps dev dev-down dev-logs local local-stop \
-        test test-backend test-postgres test-frontend setup
+        test test-backend test-postgres test-frontend security setup
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z_-]+:.*## / {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -70,3 +70,8 @@ test-postgres: ## Backend tests on PostgreSQL (starts and removes a throwaway po
 
 test-frontend: ## Frontend tests (Vitest + jsdom)
 	npm test
+
+# ---- security ----------------------------------------------------------------------------------
+
+security: ## Scan npm dependencies for known vulnerabilities (npm audit; fails on moderate or higher)
+	npm audit --audit-level=moderate

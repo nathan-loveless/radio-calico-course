@@ -119,6 +119,10 @@ radiocalico/
 - **Container state:** `app.py` reads `RADIOCALICO_DATA_DIR` for the database and `secret_key`, so mounting a volume there is all persistence needs.
 - **Schema changes:** put them in `schema.sql` using `create table if not exists`, and add a migration step for existing databases.
 
+## Security scanning
+
+`make security` runs `npm audit --audit-level=moderate` and fails if any known vulnerability of moderate severity or higher is found in the npm dependencies. The project's only npm packages are test tooling (Vitest and jsdom), so this covers the dev toolchain, not the shipped app. CI runs the same check as the `security` job in `.github/workflows/test.yml`. Python dependencies are not scanned.
+
 ## Design
 
 Palette: forest green `#1F4E23`, teal `#38A29D`, mint `#D8F2D5`, calico orange `#EFA63C`, cream `#F5EADA`, charcoal `#231F20`. Headings use Montserrat and body text uses Open Sans. See `RadioCalico_Style_Guide.txt` and `RadioCalicoLayout.png`.
