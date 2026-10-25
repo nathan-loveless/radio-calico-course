@@ -2,23 +2,22 @@ import hashlib
 import os
 import re
 import secrets
-import sqlite3
 from datetime import timedelta
-from pathlib import Path
 
 from flask import Flask, g, jsonify, request, session
 from werkzeug.security import check_password_hash, generate_password_hash
 
+import db
 import scanner
 
-BASE = Path(__file__).parent
-DATA_DIR = Path(os.environ.get("RADIOCALICO_DATA_DIR", BASE / "data"))
-DB_PATH = DATA_DIR / "radiocalico.db"
+DATA_DIR = db.DATA_DIR
 
 app = Flask(__name__)
 
 
 def load_secret_key():
+    if os.environ.get("RADIOCALICO_SECRET_KEY"):
+        return os.environ["RADIOCALICO_SECRET_KEY"]
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     path = DATA_DIR / "secret_key"
     if not path.exists():
@@ -39,32 +38,25 @@ DUMMY_HASH = generate_password_hash("not-a-real-password")
 
 def get_db():
     if "db" not in g:
-        g.db = sqlite3.connect(DB_PATH)
-        g.db.row_factory = sqlite3.Row
-        g.db.execute("pragma foreign_keys = on")
+        g.db = db.connect()
     return g.db
 
 
 @app.teardown_appcontext
 def close_db(_exc):
-    db = g.pop("db", None)
-    if db is not None:
-        db.close()
-
-
-def init_db():
-    with sqlite3.connect(DB_PATH) as db:
-        db.executescript((BASE / "schema.sql").read_text())
-        cols = {r[1] for r in db.execute("pragma table_info(tracks)")}
-        for col, typ in (("album", "text"), ("duration", "real")):
-            if col not in cols:
-                db.execute(f"alter table tracks add column {col} {typ}")
+    conn = g.pop("db", None)
+    if conn is not None:
+        conn.close()
 
 
 @app.get("/api/health")
 def health():
-    row = get_db().execute("select datetime('now') as time, sqlite_version() as v").fetchone()
-    return jsonify(ok=True, db=row["time"], sqlite=row["v"])
+    if db.BACKEND == "postgres":
+        query = "select now()::text as time, version() as v"
+    else:
+        query = "select datetime('now') as time, sqlite_version() as v"
+    row = get_db().execute(query).fetchone()
+    return jsonify(ok=True, db=row["time"], backend=db.BACKEND, version=row["v"])
 
 
 @app.get("/api/tracks")
@@ -77,8 +69,8 @@ def tracks():
 
 @app.post("/api/scan")
 def rescan():
-    with sqlite3.connect(DB_PATH) as db:
-        found, removed = scanner.scan(db)
+    with db.connect() as conn:
+        found, removed = scanner.scan(conn)
     return jsonify(found=found, removed=removed)
 
 
@@ -99,14 +91,14 @@ def voter_id(user):
 
 
 def rating_summary(key, user):
-    db = get_db()
-    row = db.execute(
-        "select coalesce(sum(value = 1), 0) as up, coalesce(sum(value = -1), 0) as down "
+    conn = get_db()
+    row = conn.execute(
+        "select count(*) filter (where value = 1) as up, count(*) filter (where value = -1) as down "
         "from ratings where song_key = ?", (key,)
     ).fetchone()
     mine = None
     if user:
-        r = db.execute(
+        r = conn.execute(
             "select value from ratings where song_key = ? and voter = ?", (key, voter_id(user))
         ).fetchone()
         mine = r["value"] if r else None
@@ -144,17 +136,19 @@ def register():
         return jsonify(error="Username must be 3-30 letters, numbers, _ . or -"), 400
     if not (8 <= len(password) <= 200):
         return jsonify(error="Password must be at least 8 characters"), 400
-    db = get_db()
+    conn = get_db()
     try:
-        cur = db.execute(
-            "insert into users (username, password_hash) values (?, ?)",
+        cur = conn.execute(
+            "insert into users (username, password_hash) values (?, ?) returning id",
             (username, generate_password_hash(password)),
         )
-        db.commit()
-    except sqlite3.IntegrityError:
+        uid = cur.fetchone()["id"]
+        conn.commit()
+    except db.IntegrityError:
+        conn.rollback()
         return jsonify(error="That username is taken"), 409
     session.clear()
-    session["uid"] = cur.lastrowid
+    session["uid"] = uid
     session.permanent = True
     return jsonify(user=user_json(current_user())), 201
 
@@ -163,7 +157,7 @@ def register():
 def login():
     username, password = credentials()
     row = get_db().execute(
-        "select id, password_hash from users where username = ?", (username,)
+        "select id, password_hash from users where lower(username) = lower(?)", (username,)
     ).fetchone()
     # Always run a hash check so response time doesn't reveal whether the username exists.
     ok = check_password_hash(row["password_hash"] if row else DUMMY_HASH, password)
@@ -205,16 +199,15 @@ def post_rating():
     if not song or value not in (1, -1) or isinstance(value, bool):
         return jsonify(error="artist, title and value (1 or -1) required"), 400
     key = song_key(*song)
-    db = get_db()
+    conn = get_db()
     # One row per (song, user); rating again replaces the earlier value.
-    db.execute(
+    conn.execute(
         "insert into ratings (song_key, voter, artist, title, value) values (?, ?, ?, ?, ?) "
-        "on conflict (song_key, voter) do update set value = excluded.value, created_at = datetime('now')",
+        "on conflict (song_key, voter) do update set value = excluded.value, created_at = current_timestamp",
         (key, voter_id(user), song[0], song[1], value),
     )
-    db.commit()
-    resp = jsonify(rating_summary(key, user))
-    return resp
+    conn.commit()
+    return jsonify(rating_summary(key, user))
 
 
 @app.delete("/api/ratings")
@@ -226,15 +219,15 @@ def delete_rating():
     if not song:
         return jsonify(error="artist and title required"), 400
     key = song_key(*song)
-    db = get_db()
-    db.execute("delete from ratings where song_key = ? and voter = ?", (key, voter_id(user)))
-    db.commit()
+    conn = get_db()
+    conn.execute("delete from ratings where song_key = ? and voter = ?", (key, voter_id(user)))
+    conn.commit()
     return jsonify(rating_summary(key, user))
 
 
-init_db()
-with sqlite3.connect(DB_PATH) as _db:
-    scanner.scan(_db)
+db.init_db()
+with db.connect() as _conn:
+    scanner.scan(_conn)
 
 if __name__ == "__main__":
     app.run(host=os.environ.get("RADIOCALICO_HOST", "127.0.0.1"), port=5000, debug=os.environ.get("RADIOCALICO_DEBUG", "1") == "1")

@@ -4,6 +4,7 @@ import tempfile
 from pathlib import Path
 
 # app.py runs init_db() and a media scan on import, so point it at a throwaway data dir first.
+# Set DATABASE_URL to run the same suite against PostgreSQL (see .github/workflows/test.yml).
 _DATA_DIR = tempfile.TemporaryDirectory()
 os.environ["RADIOCALICO_DATA_DIR"] = _DATA_DIR.name
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -18,11 +19,9 @@ PASSWORD = "correct-horse"
 
 @pytest.fixture(autouse=True)
 def clean_db():
-    import sqlite3
-
-    with sqlite3.connect(app_module.DB_PATH) as db:
-        db.execute("delete from ratings")
-        db.execute("delete from users")
+    with app_module.db.connect() as conn:
+        conn.execute("delete from ratings")
+        conn.execute("delete from users")
 
 
 @pytest.fixture

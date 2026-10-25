@@ -1,28 +1,40 @@
 # syntax=docker/dockerfile:1
-# Targets: `dev` (source bind-mounted, Flask reloader) and `prod` (default; gunicorn, code baked in).
-FROM python:3.12-slim AS base
-RUN apt-get update && apt-get install -y --no-install-recommends nginx \
-    && rm -rf /var/lib/apt/lists/*
+# Targets:
+#   dev  all-in-one (nginx + Flask reloader + SQLite), repo bind-mounted. See docker-compose.yml `app-dev`.
+#   api  production Flask app under gunicorn, talks to PostgreSQL via DATABASE_URL.
+#   web  production nginx serving public/ and proxying /api/ to the api service.
+FROM python:3.12-slim AS pybase
 WORKDIR /app
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-RUN useradd --system --uid 1000 --home /app radiocalico && mkdir /data && chown radiocalico /data
-ENV RADIOCALICO_DATA_DIR=/data RADIOCALICO_HOST=127.0.0.1 PYTHONUNBUFFERED=1
+RUN pip install --no-cache-dir -r requirements.txt \
+    && useradd --system --uid 1000 --home /app radiocalico
+ENV PYTHONUNBUFFERED=1
+
+FROM pybase AS dev
+RUN apt-get update && apt-get install -y --no-install-recommends nginx \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir /data && chown radiocalico /data
+ENV RADIOCALICO_ENV=dev RADIOCALICO_DATA_DIR=/data RADIOCALICO_HOST=127.0.0.1
 VOLUME /data
 EXPOSE 8080
 USER radiocalico
+COPY --chown=radiocalico . .
 ENTRYPOINT ["/app/docker/entrypoint.sh"]
 
-FROM base AS dev
-ENV RADIOCALICO_ENV=dev
-COPY --chown=radiocalico . .
-
-FROM base AS prod
-USER root
+FROM pybase AS api
 RUN pip install --no-cache-dir gunicorn==23.0.0
 USER radiocalico
-ENV RADIOCALICO_ENV=prod RADIOCALICO_DEBUG=0
-COPY --chown=radiocalico app.py scanner.py schema.sql ./
-COPY --chown=radiocalico docker ./docker
-COPY --chown=radiocalico public ./public
-HEALTHCHECK --interval=30s --timeout=3s CMD python -c "import urllib.request as u; u.urlopen('http://127.0.0.1:8080/api/health')"
+ENV RADIOCALICO_DEBUG=0
+COPY app.py db.py scanner.py schema.sql schema_postgres.sql ./
+COPY public/media ./public/media
+EXPOSE 5000
+HEALTHCHECK --interval=30s --timeout=3s --start-period=20s \
+  CMD python -c "import urllib.request as u; u.urlopen('http://127.0.0.1:5000/api/health')"
+# --preload runs init_db + the media scan once in the master, not in every worker.
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--preload", "--workers", "2", "--threads", "4", "--access-logfile", "-", "app:app"]
+
+FROM nginxinc/nginx-unprivileged:1.27-alpine AS web
+COPY docker/nginx.web.conf /etc/nginx/nginx.conf
+COPY public /usr/share/nginx/html
+EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=3s CMD wget -q -O /dev/null http://127.0.0.1:8080/ || exit 1

@@ -3,9 +3,9 @@
 A web radio player. It streams a live HLS station, shows the current song, and lets signed-in listeners rate what's playing.
 
 - **Frontend:** static HTML/CSS and vanilla JavaScript in `public/` (no build step), using [hls.js](https://github.com/video-dev/hls.js) for playback.
-- **Backend:** a small Flask + SQLite API for accounts, ratings and a local track library.
+- **Backend:** a small Flask API for accounts, ratings and a local track library. It uses PostgreSQL in the production deployment and SQLite for local development and tests.
 - **Serving:** nginx serves `public/` and proxies `/api/` to Flask.
-- **Packaging:** a single Docker image (nginx + Flask) with `dev` and `prod` targets, or run it locally with `dev.sh`.
+- **Packaging:** Docker Compose. Production is three containers (nginx, Flask under gunicorn, PostgreSQL); development is one all-in-one container with SQLite. You can also run locally with `dev.sh`.
 
 ## Features
 
@@ -22,31 +22,35 @@ A web radio player. It streams a live HLS station, shows the current song, and l
 
 ## Getting started
 
-### Docker (recommended)
+`make` lists the shortcuts used below: `make prod`, `make dev`, `make test`, and more (`make help`).
 
-One image, two build targets. nginx and Flask run together in one container on port 8080; the SQLite database and `secret_key` live in the `/data` volume.
+### Docker production (nginx + Flask + PostgreSQL)
 
 ```bash
-# prod: code baked in, gunicorn, healthcheck, restarts automatically
+cp .env.example .env     # then fill in both values; generate each with: openssl rand -hex 32
 docker compose up -d --build                      # http://localhost:8080
-
-# dev: repo bind-mounted, Flask reloader, edits to public/ show immediately
-docker compose --profile dev up --build app-dev   # http://localhost:8081
 ```
 
-| | `prod` (default target) | `dev` |
-| --- | --- | --- |
-| Server | gunicorn (1 worker, 4 threads) | `python app.py`, debug and reloader on |
-| Code | copied into the image (app, `public/`, `docker/` only) | bind-mounted from the repo |
-| Data volume | `radiocalico-data` | `radiocalico-dev-data` (separate) |
-| Port | 8080 | 8081 |
-| Extras | healthcheck, `restart: unless-stopped` | runs as your `UID`/`GID` |
+Three services: `web` (nginx serving `public/` and proxying `/api/`; the only published port, 8080), `api` (Flask under gunicorn, reachable only from `web`) and `db` (PostgreSQL 16 with data in the `pgdata` volume). `api` waits for `db` to be healthy and `web` waits for `api`.
 
-Without compose: `docker build --target prod -t radiocalico:prod .` then `docker run -p 8080:8080 -v radiocalico-data:/data radiocalico:prod`.
+Compose refuses to start unless `.env` sets:
 
-Configuration is by environment variable: `RADIOCALICO_DATA_DIR` (default `/data` in the image), `RADIOCALICO_HOST` (Flask bind address) and `RADIOCALICO_DEBUG` (`1` or `0`). There is no TLS in the container; terminate HTTPS in a reverse proxy in front of it. Deleting the data volume deletes all users and ratings.
+- `POSTGRES_PASSWORD`: the database password. Use hex, because it is embedded in a URL.
+- `RADIOCALICO_SECRET_KEY`: signs session cookies. Changing it logs everyone out.
 
-If your user id is not 1000, start dev with `UID=$(id -u) GID=$(id -g) docker compose --profile dev up`.
+The tables are created on first start. Deleting the `pgdata` volume deletes all users and ratings. There is no TLS in the stack; terminate HTTPS in a reverse proxy in front of `web`.
+
+### Docker development (SQLite, live reload)
+
+```bash
+docker compose -f docker-compose.dev.yml up --build     # http://localhost:8081
+```
+
+One container runs nginx and the Flask reloader against SQLite, with the repo bind-mounted so edits show immediately. No secrets are needed. If your user id is not 1000, run it with `UID=$(id -u) GID=$(id -g)` set. The data lives in the `radiocalico-dev-data` volume.
+
+### Choosing the database
+
+`app.py` uses PostgreSQL when `DATABASE_URL` is set (for example `postgresql://user:pass@host:5432/dbname`) and SQLite otherwise, in `$RADIOCALICO_DATA_DIR` (default `data/`). `RADIOCALICO_SECRET_KEY` overrides the generated `secret_key` file. `RADIOCALICO_DEBUG` (`1` or `0`) controls Flask debug mode when run directly.
 
 ### Local (without Docker)
 
@@ -71,24 +75,30 @@ Then open <http://localhost:8080>.
 | `./dev.sh scan` | Re-index `public/media/` audio files into the `tracks` table |
 | `./dev.sh sql '<query>'` | Run a SQL query against `data/radiocalico.db` |
 
-Flask runs with `debug=True` and reloads on edit. nginx must be restarted after changing `nginx.conf`. The container uses its own `docker/nginx.conf`, so changes to the root `nginx.conf` only affect `dev.sh`.
+Flask runs with `debug=True` and reloads on edit. nginx must be restarted after changing `nginx.conf`. The containers use their own configs (`docker/nginx.conf` for dev, `docker/nginx.web.conf` for production), so changes to the root `nginx.conf` only affect `dev.sh`.
 
 ## Project structure
 
 ```
 radiocalico/
 ├── app.py            # Flask API (auth, ratings, tracks)
-├── scanner.py        # Indexes audio tags from public/media/ into SQLite
+├── scanner.py        # Indexes audio tags from public/media/ into the tracks table
+├── db.py             # Connection layer: SQLite, or PostgreSQL when DATABASE_URL is set
 ├── schema.sql        # SQLite schema, applied on every start
+├── schema_postgres.sql  # PostgreSQL schema, applied on every start
 ├── dev.sh            # start|stop|status|scan|sql helper
 ├── nginx.conf        # Static serving + /api/ proxy for dev.sh (absolute paths)
-├── requirements.txt  # Flask, mutagen
-├── Dockerfile        # base / dev / prod targets
-├── docker-compose.yml  # prod service, plus app-dev under the dev profile
+├── requirements.txt  # Flask, mutagen, psycopg
+├── Makefile          # prod / dev / test shortcuts (run `make help`)
+├── Dockerfile        # dev / api / web targets
+├── docker-compose.yml  # Production: db + api + web
+├── docker-compose.dev.yml  # Development: one container, SQLite
+├── .env.example      # Secrets the production compose file requires
 ├── .dockerignore
 ├── docker/
-│   ├── entrypoint.sh # Runs Flask (gunicorn in prod) and nginx; exits if either dies
-│   └── nginx.conf    # Container nginx config (container paths, logs to stdout)
+│   ├── entrypoint.sh # Dev image: runs Flask and nginx; exits if either dies
+│   ├── nginx.conf    # Dev image nginx config (all-in-one, proxies to localhost)
+│   └── nginx.web.conf  # Production `web` image nginx config (proxies to the `api` service)
 ├── stream_URL.txt    # Reference copy of the HLS stream URL
 ├── public/           # Static frontend
 │   ├── index.html
@@ -115,6 +125,8 @@ Palette: forest green `#1F4E23`, teal `#38A29D`, mint `#D8F2D5`, calico orange `
 
 ## Testing
 
+`make test` runs everything (backend on SQLite and on a throwaway PostgreSQL container, then frontend); `make test-backend`, `make test-postgres` and `make test-frontend` run one part, and `make setup` installs the dependencies. The commands they wrap:
+
 Ratings and auth are covered by unit tests on both sides. There is no linter configured.
 
 ```bash
@@ -122,10 +134,13 @@ Ratings and auth are covered by unit tests on both sides. There is no linter con
 .venv/bin/pip install -r requirements-dev.txt
 .venv/bin/pytest
 
+# Same suite against PostgreSQL (needs a reachable, disposable database; the tests delete users and ratings)
+DATABASE_URL=postgresql://user:pass@localhost:5432/dbname .venv/bin/pytest
+
 # Frontend (Vitest + jsdom; loads public/index.html and player.js unmodified)
 npm install
 npm test
 ```
 
-Both run in GitHub Actions on every push to `main` and on pull requests (`.github/workflows/test.yml`).
+The backend suite runs on both SQLite and PostgreSQL, and the frontend suite alongside it, in GitHub Actions on every push to `main` and on pull requests (`.github/workflows/test.yml`).
 
