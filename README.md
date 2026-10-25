@@ -121,7 +121,22 @@ radiocalico/
 
 ## Security scanning
 
-`make security` runs `npm audit --audit-level=moderate` and fails if any known vulnerability of moderate severity or higher is found in the npm dependencies. The project's only npm packages are test tooling (Vitest and jsdom), so this covers the dev toolchain, not the shipped app. CI runs the same check as the `security` job in `.github/workflows/test.yml`. Python dependencies are not scanned.
+`make security` runs three scans and fails if any finds a problem:
+
+| Target | Scans | Fails on |
+| --- | --- | --- |
+| `make security-npm` | npm dependencies (`npm audit`). Only test tooling lives here (Vitest, jsdom), so this covers the dev toolchain, not the shipped app. | moderate or higher |
+| `make security-python` | `requirements.txt` with `pip-audit` (pinned versions, no dependency resolution) | any known vulnerability |
+| `make security-images` | Builds the three production images (`api`, `web`, `db`) and scans them with [Trivy](https://trivy.dev) (version pinned in the Makefile, run in a container) | HIGH or CRITICAL with a fix available |
+
+Notes:
+
+- `security-images` needs Docker, and the first run downloads Trivy's vulnerability database (cached in the `radiocalico-trivy-cache` volume).
+- The `web` and `db` images run `apk upgrade` at build time to pick up OS security fixes. Rebuild them regularly (for example `make prod`) to keep receiving fixes; the scan will start failing when a fix appears in a newer package.
+- The `gosu` binary bundled in the official Postgres image is excluded from the Trivy scan (`TRIVY_SKIP` in the Makefile). It was built with an old Go toolchain, only drops privileges at container start, and cannot be patched here.
+- This does not cover the application's own code (no static analysis), committed secrets, or testing the running app.
+
+CI runs the same thing as the `security` job in `.github/workflows/test.yml`.
 
 ## Design
 

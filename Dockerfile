@@ -3,6 +3,7 @@
 #   dev  all-in-one (nginx + Flask reloader + SQLite), repo bind-mounted. See docker-compose.yml `app-dev`.
 #   api  production Flask app under gunicorn, talks to PostgreSQL via DATABASE_URL.
 #   web  production nginx serving public/ and proxying /api/ to the api service.
+#   db   production PostgreSQL: the official image plus OS package updates.
 FROM python:3.12-slim AS pybase
 WORKDIR /app
 COPY requirements.txt .
@@ -33,8 +34,14 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=20s \
 # --preload runs init_db + the media scan once in the master, not in every worker.
 CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--preload", "--workers", "2", "--threads", "4", "--access-logfile", "-", "app:app"]
 
-FROM nginxinc/nginx-unprivileged:1.27-alpine AS web
+FROM nginxinc/nginx-unprivileged:1.30-alpine AS web
+USER root
+RUN apk upgrade --no-cache
+USER nginx
 COPY docker/nginx.web.conf /etc/nginx/nginx.conf
 COPY public /usr/share/nginx/html
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s CMD wget -q -O /dev/null http://127.0.0.1:8080/ || exit 1
+
+FROM postgres:16-alpine3.22 AS db
+RUN apk upgrade --no-cache

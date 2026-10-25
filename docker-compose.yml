@@ -3,7 +3,8 @@
 # dev (SQLite, one container, live source, no secrets needed): see docker-compose.dev.yml
 services:
   db:
-    image: postgres:16-alpine
+    build: { context: ., target: db }
+    image: radiocalico-db
     environment:
       POSTGRES_DB: radiocalico
       POSTGRES_USER: radiocalico
